@@ -10,6 +10,8 @@ from a Garmin -> M2 link (see TODO.md).
 
 from __future__ import annotations
 
+import struct
+
 # ---------------------------------------------------------------------------
 # BLE FTMS (Bluetooth Fitness Machine Service)
 # ---------------------------------------------------------------------------
@@ -19,6 +21,33 @@ FTMS_CONTROL_POINT_UUID = "00002ad9-0000-1000-8000-00805f9b34fb"
 FTMS_FEATURE_UUID = "00002acc-0000-1000-8000-00805f9b34fb"
 FTMS_INDOOR_BIKE_DATA_UUID = "00002ad2-0000-1000-8000-00805f9b34fb"
 FTMS_STATUS_UUID = "00002ada-0000-1000-8000-00805f9b34fb"
+
+# FTMS Indoor Bike Data (0x2AD2) flags bitfield (byte 0 of flags)
+FTMS_IBD_FLAG_PEDAL_POWER = 0x02  # instantaneous pedal power present
+FTMS_IBD_FLAG_CADENCE = 0x08  # cadence present
+
+
+def build_indoor_bike_data(
+    power_w: float,
+    cadence_rpm: float,
+    crank_rev: int = 0,
+    crank_event_time: int = 0,
+) -> bytes:
+    """Build an FTMS Indoor Bike Data characteristic value (0x2AD2).
+
+    Layout (flags = pedal power + cadence):
+      [0:2]  flags           uint16 LE
+      [2:4]  power           sint16 LE (W)
+      [4:6]  crank rev       uint16 LE (cumulative revolutions)
+      [6:8]  crank event     uint16 LE (1/1024 s)
+    """
+    flags = FTMS_IBD_FLAG_PEDAL_POWER | FTMS_IBD_FLAG_CADENCE
+    return bytes(
+        struct.pack("<H", flags)
+        + struct.pack("<h", int(power_w))
+        + struct.pack("<H", int(crank_rev) & 0xFFFF)
+        + struct.pack("<H", int(crank_event_time) & 0xFFFF)
+    )
 
 # Fitness Machine Control Point op codes (write to 0x2AD9)
 FTMS_OP_REQUEST_CONTROL = 0x00

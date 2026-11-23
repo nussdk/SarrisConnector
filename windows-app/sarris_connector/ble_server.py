@@ -171,8 +171,15 @@ class BleTrainerServer:
     def notify_indoor_bike_data(self, payload: bytes) -> None:
         """Notify MyWhoosh of trainer data (power/cadence/speed).
 
-        Sends an indication/notification on the Indoor Bike Data
-        characteristic (0x2AD2) to the connected MyWhoosh client.
+        Sends a notification on the Indoor Bike Data characteristic (0x2AD2)
+        to the connected MyWhoosh client.
+
+        On Windows this requires the Indoor Bike Data characteristic's
+        Client Characteristic Configuration Descriptor (CCCD) to be
+        configured for notifications (and the characteristic stored as
+        ``self._indoor_bike_data`` when the provider is built). The
+        characteristic lookup / CCCD setup is not yet implemented and needs
+        validation on the Windows host.
         """
         if self._indoor_bike_data is None:
             logger.debug("Indoor Bike Data characteristic not ready; dropping notify")
@@ -182,10 +189,6 @@ class BleTrainerServer:
             writer = winrt["DataWriter"]()
             writer.write_bytes(list(payload))
             buffer = writer.detach_buffer()
-            # GATT Characteristic Value changed -> notify/indicate subscribed
-            # clients. The exact WinRT call (WriteValueAsync with
-            # GattClientCharacteristicConfigurationDescriptorValue.Notify)
-            # should be validated on the Windows host.
             self._indoor_bike_data.write_value(buffer)
         except Exception as exc:  # noqa: BLE001
             logger.error("notify_indoor_bike_data failed: %s", exc)

@@ -28,17 +28,22 @@ Trainer data (power/cadence/speed) flows back over ANT+ → app → BLE → MyWh
 
 | Module | Status |
 |--------|--------|
-| `protocol.py` | Done — FTMS op codes + ANT+ FE-C constants |
+| `protocol.py` | Done — FTMS op codes + ANT+ FE-C constants + FTMS Indoor Bike Data (0x2AD2) payload builder |
 | `translator.py` | Done — FTMS → ANT+ FE-C intent (grade / target power / resistance), unit-tested |
-| `ant_master.py` | Done — wraps `openant.devices.fitness_equipment.FitnessEquipment`; sends `set_target_power` / `set_basic_resistance` to the M2 via ANT+ stick (needs hardware to test) |
-| `ble_server.py` | **Done (WinRT backend)** — hosts the FTMS GATT service and advertises as a BLE trainer peripheral via WinRT `GattServiceProvider` + `BluetoothLEAdvertisementPublisher`. Control-point writes from MyWhoosh flow to `handle_control_write` → translator → ANT+ master. Written against the `winrt` API; **validate on the Windows host** (characteristic registration / notify path not testable on this Linux box). |
-| `bridge.py` | Done — wires BLE command → translator → ANT+ master |
+| `ant_master.py` | Done — wraps `openant.devices.fitness_equipment.FitnessEquipment`; sends `set_target_power` / `set_basic_resistance` to the M2 via ANT+ stick. **Now also parses incoming ANT+ data pages** (power/cadence/speed) via `data_callback` and tracks `last_data_time` for ANT+ connectivity heartbeat (`ant_stale` property). Needs hardware to test. |
+| `ble_server.py` | **Done (WinRT backend)** — hosts the FTMS GATT service and advertises as a BLE trainer peripheral via WinRT `GattServiceProvider` + `BluetoothLEAdvertisementPublisher`. Control-point writes from MyWhoosh flow to `handle_control_write` → translator → ANT+ master. `notify_indoor_bike_data` sends trainer data back to MyWhoosh; WinRT CCCD setup / characteristic lookup needs validation on the Windows host. |
+| `bridge.py` | Done — wires BLE command → translator → ANT+ master **and** ANT+ trainer data → BLE notify to MyWhoosh |
 | `__main__.py` | Done — `python -m sarris_connector` entry point |
 
-Running the app starts the ANT+ node and hosts the FTMS BLE service via the
-WinRT backend. The BLE-server path is implemented but **untested on Windows**
-(written on Linux, where `winrt` is unavailable); validate it on the Windows
-host with the M2 hardware before relying on end-to-end control.
+## Data flow
+
+```
+Command path:  MyWhoosh (BLE FTMS writes) -> bridge -> translator -> ANT+ FE-C -> M2
+Data path:     M2 (ANT+ data pages) -> ant_master data callback -> bridge -> BLE notify (0x2AD2) -> MyWhoosh
+```
+
+Heartbeat: `AntMaster.last_data_time` is updated on every ANT+ data page; `ant_stale` is `True` if no data page has arrived for >5 seconds.
+
 
 ## Run
 
