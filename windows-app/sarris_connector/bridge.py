@@ -53,7 +53,10 @@ class TrainerBridge:
     def __init__(self) -> None:
         self._translator = FtmsToAntTranslator()
         self._shifter = VirtualShifter(mode=VirtualShiftingMode.BASIC_RESISTANCE)
-        self._ble = BleTrainerServer(on_command=self._on_ftms_command)
+        self._ble = BleTrainerServer(
+            on_command=self._on_ftms_command,
+            on_gear_ratio=self._on_gear_ratio,
+        )
         self._ant = AntMaster(data_callback=self._on_ant_data)
         self._running = False
 
@@ -138,6 +141,10 @@ class TrainerBridge:
             logger.warning("Invalid gear index: %d", gear_index)
             return
         self.set_gear_ratio(ratio)
+
+    def _on_gear_ratio(self, gear_ratio: float) -> None:
+        """Callback invoked by the BLE server when MyWhoosh writes a gear ratio."""
+        self.set_gear_ratio(gear_ratio)
 
     # ------------------------------------------------------------------
     # Data path: ANT+ trainer data -> BLE notify to MyWhoosh

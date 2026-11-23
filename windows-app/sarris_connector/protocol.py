@@ -22,6 +22,11 @@ FTMS_FEATURE_UUID = "00002acc-0000-1000-8000-00805f9b34fb"
 FTMS_INDOOR_BIKE_DATA_UUID = "00002ad2-0000-1000-8000-00805f9b34fb"
 FTMS_STATUS_UUID = "00002ada-0000-1000-8000-00805f9b34fb"
 
+# Zwift-style custom service for virtual shifting gear selection (BLE).
+# MyWhoosh writes the selected gear ratio here.
+ZWIFT_CUSTOM_SERVICE_UUID = "00000001-19CA-4651-86E5-FA29DCDD09D1"
+ZWIFT_GEAR_RATIO_CHAR_UUID = "00000002-19CA-4651-86E5-FA29DCDD09D1"
+
 # FTMS Indoor Bike Data (0x2AD2) flags bitfield (byte 0 of flags)
 FTMS_IBD_FLAG_PEDAL_POWER = 0x02  # instantaneous pedal power present
 FTMS_IBD_FLAG_CADENCE = 0x08  # cadence present

@@ -55,21 +55,26 @@ class BleTrainerServer:
     :param device_name: advertised BLE device name.
     :param on_command: callback invoked with each FTMS command from MyWhoosh.
         Receives an object with ``op_code`` and ``params`` attributes.
+    :param on_gear_ratio: callback invoked when MyWhoosh writes a gear ratio
+        to the virtual shifting characteristic. Receives a float gear ratio.
     """
 
     def __init__(
         self,
         device_name: str = "SarrisConnector",
         on_command: Optional[Callable[[object], None]] = None,
+        on_gear_ratio: Optional[Callable[[float], None]] = None,
     ) -> None:
         self._device_name = device_name
         self._on_command = on_command
+        self._on_gear_ratio = on_gear_ratio
         self._running = False
         # WinRT resources, only initialised on Windows by :meth:`start`.
         self._provider = None          # GattServiceProvider
         self._publisher = None         # BluetoothLEAdvertisementPublisher
         self._control_point = None     # GattCharacteristic (0x2AD9)
         self._indoor_bike_data = None  # GattCharacteristic (0x2AD2)
+        self._gear_ratio_char = None   # GattCharacteristic (Zwift gear ratio)
 
     # ------------------------------------------------------------------
     # Lifecycle (WinRT backend on Windows)
@@ -163,6 +168,23 @@ class BleTrainerServer:
                 self._on_command(_FtmsCommand(op_code, params))
             except Exception as exc:  # noqa: BLE001
                 logger.error("Command callback failed: %s", exc)
+
+    # ------------------------------------------------------------------
+    # Gear ratio write (virtual shifting) -> MyWhoosh
+    # ------------------------------------------------------------------
+
+    def handle_gear_ratio_write(self, gear_ratio: float) -> None:
+        """Dispatch a gear ratio write from MyWhoosh.
+
+        Backends call this when a write arrives on the gear ratio
+        characteristic (Zwift custom service 0x00000002). The gear ratio
+        is expected as a float (chainring:sprocket, 0.75–5.49).
+        """
+        if self._on_gear_ratio is not None:
+            try:
+                self._on_gear_ratio(gear_ratio)
+            except Exception as exc:  # noqa: BLE001
+                logger.error("Gear ratio callback failed: %s", exc)
 
     # ------------------------------------------------------------------
     # Outbound trainer data (notify) -> MyWhoosh (WinRT backend)
