@@ -2,3 +2,13 @@
 .vscode
 .DS_Store
 ota.ini
+
+# Local project additions
+out/
+refs/
+__pycache__/
+*.py[cod]
+.venv/
+venv/
+.pytest_cache/
+.env
