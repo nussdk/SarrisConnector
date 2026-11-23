@@ -23,6 +23,7 @@ and [`VirtualShifting.md`](VirtualShifting.md).
 
 - `src/`, `include/`, `lib/`, `src-web/` — SHIFTR firmware and web UI (upstream structure)
 - `tools/` — Python diagnostic scripts for BLE/protocol capture
+- `windows-app/` — Windows translation app (BLE↔ANT+ FE-C bridge for MyWhoosh → M2). See `windows-app/README.md`.
 - `docs/` — local protocol notes and capture guides
 - `refs/` — read-only third-party reference clones (gitignored)
 - `out/` — scratch captures and logs (gitignored)
