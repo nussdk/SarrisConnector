@@ -2,7 +2,7 @@
 #include <BTDeviceManager.h>
 #include <NimBLEDevice.h>
 
-void BTAdvertisedDeviceCallbacks::onResult(NimBLEAdvertisedDevice* advertisedDevice) {
+void BTAdvertisedDeviceCallbacks::onResult(const NimBLEAdvertisedDevice* advertisedDevice) {
   bool addDevice = true;
   for (NimBLEUUID uuid : BTDeviceManager::remoteDeviceFilterUUIDs) {
     if (!advertisedDevice->isAdvertisingService(uuid)) {
@@ -20,4 +20,8 @@ void BTAdvertisedDeviceCallbacks::onResult(NimBLEAdvertisedDevice* advertisedDev
       BTDeviceManager::stopScan();
     }
   }
+}
+
+void BTAdvertisedDeviceCallbacks::onScanEnd(const NimBLEScanResults& scanResults, int reason) {
+  BTDeviceManager::onScanEnd(scanResults, reason);
 }

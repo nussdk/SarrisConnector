@@ -3,11 +3,17 @@
 
 // IoTWebConf configuration
 // identifier for EEPROM storage
-#define WIFI_CONFIG_VERSION "init"
+#define WIFI_CONFIG_VERSION "init2"
 // when CONFIG_PIN is pulled to ground on startup, the device will use the initial password to build an AP
-#define WIFI_CONFIG_PIN IO12
 // status indicator pin, first it will light up (kept LOW), on Wifi connection it will blink, when connected to the Wifi it will turn off (kept HIGH)
+#ifdef ARDUINO_WT32_ETH01
+#define WIFI_CONFIG_PIN IO12
 #define WIFI_STATUS_PIN IO14
+#else
+// IO12/IO14 are strapping pins on a generic ESP32; use safe GPIOs instead
+#define WIFI_CONFIG_PIN 4
+#define WIFI_STATUS_PIN 5
+#endif
 
 #include <Arduino.h>
 #include <IotWebConf.h>
@@ -43,6 +49,8 @@ class SettingsManager {
   static std::string getAPPassword();
   static bool isFTMSEnabled();
   static void setFTMSEnabled(bool enabled);
+  static bool isAppDrivenGearsEnabled();
+  static void setAppDrivenGearsEnabled(bool enabled);
 
  private:
   static char iotWebConfChainringTeethParameterValue[];
@@ -55,6 +63,7 @@ class SettingsManager {
   static char iotWebConfGradeSmoothingParameterValue[];
   static char iotWebConfDifficultyParameterValue[];
   static char iotWebConfFTMSParameterValue[];
+  static char iotWebConfAppDrivenGearsParameterValue[];
   static IotWebConfParameterGroup iotWebConfSettingsGroup;
   static IotWebConfNumberParameter iotWebConfChainringTeethParameter;
   static IotWebConfNumberParameter iotWebConfSprocketTeethParameter;
@@ -64,6 +73,7 @@ class SettingsManager {
   static IotWebConfCheckboxParameter iotWebConfGradeSmoothingParameter;
   static IotWebConfNumberParameter iotWebConfDifficultyParameter;
   static IotWebConfCheckboxParameter iotWebConfFTMSParameter;
+  static IotWebConfCheckboxParameter iotWebConfAppDrivenGearsParameter;
   static IotWebConf* iotWebConf;
 };
 

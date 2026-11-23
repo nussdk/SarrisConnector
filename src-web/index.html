@@ -22,6 +22,7 @@
         let service = document.getElementById('service');
         let dircon = document.getElementById('dircon');
         let mode = document.getElementById('mode');
+        let gear = document.getElementById('gear');
         let freeheap = document.getElementById('freeheap');
 
         fetch('/status', {
@@ -48,6 +49,7 @@
                 service.innerHTML = response.service_status;
                 dircon.innerHTML = response.dircon_status;
                 mode.innerHTML = response.mode;
+                gear.innerHTML = Number(response.gear_ratio).toFixed(2);
                 freeheap.innerHTML = response.free_heap;
                 statusContainer.style = '';
             })
@@ -57,6 +59,21 @@
             })
             .finally(setTimeout('updateStatus()', 5000));
 
+    }
+
+    function shiftGear(delta) {
+        let gear = document.getElementById('gear');
+        let ratio = Number(gear.innerHTML) + delta;
+        ratio = Math.max(0.75, Math.min(5.49, ratio));
+        fetch('/gear', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+            body: 'gear_ratio=' + ratio.toFixed(2)
+        }).then(() => updateStatus());
+    }
+
+    function reconnectTrainer() {
+        fetch('/connect', { method: 'POST' }).then(() => updateStatus());
     }
 
     function setup() {
@@ -117,8 +134,23 @@
                     <span id="mode"></span>
                 </div>
                 <div class="form-control">
+                    <label>Virtual gear:</label>
+                    <span id="gear">0.00</span>
+                </div>
+                <div class="form-control">
                     <label>Free heap:</label>
                     <span id="freeheap"></span>&nbsp;<span>bytes</span>
+                </div>
+                <div class="button-container">
+                    <button class="btn" id="easier_btn" onclick="shiftGear(-0.12)">
+                        <label>Easier gear</label>
+                    </button>
+                    <button class="btn" id="harder_btn" onclick="shiftGear(0.12)">
+                        <label>Harder gear</label>
+                    </button>
+                    <button class="btn" id="connect_btn" onclick="reconnectTrainer()">
+                        <label>Reconnect trainer</label>
+                    </button>
                 </div>
                 <div class="button-container">
                     <button class="btn" id="settings_btn">

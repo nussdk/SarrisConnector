@@ -17,6 +17,7 @@ class BTDeviceManager {
   static void addRemoteDeviceFilter(const NimBLEUUID& serviceUUID);
   static bool isConnected();
   static bool isStarted();
+  static bool reconnect();
   static std::string getConnecedDeviceName();
   static bool writeBLECharacteristic(const NimBLEUUID& serviceUUID, const NimBLEUUID& characteristicUUID, std::vector<uint8_t>* data);
   static std::vector<uint8_t> readBLECharacteristic(const NimBLEUUID& serviceUUID, const NimBLEUUID& characteristicUUID);
@@ -45,7 +46,7 @@ class BTDeviceManager {
   static Timer<> connectTimer;
   static NimBLEAdvertisedDevice* getRemoteDevice();
   static bool connectRemoteDevice(NimBLEAdvertisedDevice* remoteDevice);
-  static void onScanEnd(NimBLEScanResults scanResults);
+  static void onScanEnd(const NimBLEScanResults& scanResults, int reason);
   static void startScan();
   static void stopScan();
   static bool doScan(void* argument);

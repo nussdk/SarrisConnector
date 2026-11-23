@@ -63,18 +63,20 @@ usable, grade must be derived from another source (app telemetry/UI/network).
 ## Decisions
 
 - **Build a connector**, not a MyWhoosh patch.
-- Direction change (after reviewing prior art): base the work on **SHIFTR**
-  (<https://github.com/JuergenLeber/SHIFTR>) on ESP32 rather than starting a Windows
-  app from scratch. It already implements BLE↔FE-C bridging, FTMS emulation for
-  MyWhoosh, reverse-engineered Zwift virtual shifting, and a web config UI.
+- Firmware track (this branch, `feature/esp32-modern-build`): base the work on
+  **SHIFTR** (<https://github.com/JuergenLeber/SHIFTR>) running on ESP32 hardware.
+  It already implements BLE↔FE-C bridging, FTMS emulation, reverse-engineered Zwift
+  virtual shifting, and a web config UI.
 - Additional goals on top of SHIFTR:
-  1. **Virtual shifting with no Zwift Click/Play controller** — SHIFTR currently
-     falls back to plain SIM mode when no controller is connected.
-  2. **Quick web UI** to toggle features and connect/select the trainer.
+  1. **Virtual shifting with no Zwift Click/Play controller** — expose the shifting
+     service and let the app/web UI supply gears.
+  2. **Quick web UI** to toggle features, change gears, reconnect the trainer, and
+     connect/select the trainer.
+- A separate Windows translation-app experiment lives on `feature/windows-connector`;
+  it is a parallel option, not a replacement for this firmware work.
 - Reference clones: `refs/shiftr` (primary), `refs/simcline-v2` (MITM capture),
   both read-only. Any modifications live in this repo, not in `refs/`.
-- Keep the PC-side Python tools for protocol capture; the Windows PC is still where
-  MyWhoosh runs.
+- PC-side Python tools for protocol capture live in `tools/`.
 
 ## SHIFTR adaptation — scope questions
 
@@ -118,13 +120,29 @@ Reference clones (read-only): `refs/simcline-v2`, `refs/shiftr`.
 
 ### Phase 2 — gradient bridge prototype
 
-- [ ] PC connector receives a grade/ERG command from the virtual trainer interface.
+- [ ] ESP32 connector receives a grade/ERG command from the virtual trainer interface.
 - [ ] Translate to ANT+ FE-C simulation / target-power pages and send to the M2.
 - [ ] Relay CPS/CSC/power data back so MyWhoosh sees a normal trainer.
 - [ ] End-to-end test: MyWhoosh shows a climb → resistance rises on the M2.
 
+### Phase 2.5 — ESP32 port / NimBLE 2.x migration
+
+- [x] Migrate to NimBLE-Arduino 2.x: scan callbacks, `getServices()` /
+      `getCharacteristics()` return-by-reference, and explicit 128-bit UUID byte order.
+- [x] Add `esp32dev` and `esp32-s3-devkitc-1` build envs alongside `wt32-eth01`;
+      switch to `min_spiffs.csv` so NimBLE 2.x fits in flash.
+- [x] Add app-driven-gear setting, `/gear` and `/connect` web endpoints, and web UI
+      controls for gear shifting and trainer reconnect.
+- [x] Builds pass for `esp32dev`, `esp32-s3-devkitc-1`, and `wt32-eth01`;
+      `pio test -e native` passes.
+- [ ] Flash to a real ESP32/S3, join the configured Wi-Fi, and check scan/connect,
+      web UI, and FE-C writes against the M2.
+- [ ] Verify app-driven virtual shifting with MyWhoosh (gear changes affect resistance).
+
 ### Phase 3 — virtual shifting
 
+- [x] Firmware support for app-driven gears without Click/Play (config toggle,
+      `/gear` endpoint, and virtual-shifting mode forced on a climb).
 - [ ] Capture what MyWhoosh expects from a Zwift virtual-shifting-capable trainer
       (service UUIDs, gear index writes) using SHIFTR's reverse engineering as reference.
 - [ ] Emulate that service toward MyWhoosh; map gear index to FE-C/FTMS resistance.

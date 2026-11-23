@@ -2,6 +2,24 @@
 #include <DirConMessage.h>
 #include <Utils.h>
 
+namespace {
+void appendDirConUUID(std::vector<uint8_t>& message, NimBLEUUID uuid) {
+  uuid.to128();
+  const uint8_t* uuidBytes = uuid.getValue();
+  for (int index = 15; index >= 0; index--) {
+    message.push_back(uuidBytes[index]);
+  }
+}
+
+NimBLEUUID parseDirConUUID(const uint8_t* data) {
+  uint8_t nativeBytes[16];
+  for (uint8_t index = 0; index < 16; index++) {
+    nativeBytes[index] = data[15 - index];
+  }
+  return NimBLEUUID(nativeBytes, 16);
+}
+}
+
 DirConMessage::DirConMessage() {}
 
 std::vector<uint8_t> *DirConMessage::encode(uint8_t sequenceNumber) {
@@ -38,26 +56,17 @@ std::vector<uint8_t> *DirConMessage::encode(uint8_t sequenceNumber) {
         this->encodedMessage.push_back((uint8_t)(this->Length >> 8));
         this->encodedMessage.push_back((uint8_t)(this->Length));
         for (size_t counter = 0; counter < this->AdditionalUUIDs.size(); counter++) {
-          uint8_t *uuidBytes = (uint8_t *)this->AdditionalUUIDs[counter].to128().getNative();
-          for (uint8_t index = 16; index > 0; index--) {
-            this->encodedMessage.push_back(uuidBytes[index]);
-          }
+          appendDirConUUID(this->encodedMessage, this->AdditionalUUIDs[counter]);
         }
       }
     } else if (this->Identifier == DIRCON_MSGID_DISCOVER_CHARACTERISTICS && !this->Request) {
       this->Length = 16 + this->AdditionalUUIDs.size() * 17;
       this->encodedMessage.push_back((uint8_t)(this->Length >> 8));
       this->encodedMessage.push_back((uint8_t)(this->Length));
-      uint8_t *uuidBytes = (uint8_t *)this->UUID.to128().getNative();
-      for (uint8_t index = 16; index > 0; index--) {
-        this->encodedMessage.push_back(uuidBytes[index]);
-      }
+      appendDirConUUID(this->encodedMessage, this->UUID);
       size_t dataIndex = 0;
       for (size_t counter = 0; counter < this->AdditionalUUIDs.size(); counter++) {
-        uint8_t *uuidBytes = (uint8_t *)this->AdditionalUUIDs[counter].to128().getNative();
-        for (uint8_t index = 16; index > 0; index--) {
-          this->encodedMessage.push_back(uuidBytes[index]);
-        }
+        appendDirConUUID(this->encodedMessage, this->AdditionalUUIDs[counter]);
         this->encodedMessage.push_back(this->AdditionalData[dataIndex]);
         dataIndex++;
       }
@@ -68,10 +77,7 @@ std::vector<uint8_t> *DirConMessage::encode(uint8_t sequenceNumber) {
       this->Length = 16;
       this->encodedMessage.push_back((uint8_t)(this->Length >> 8));
       this->encodedMessage.push_back((uint8_t)(this->Length));
-      uint8_t *uuidBytes = (uint8_t *)this->UUID.to128().getNative();
-      for (uint8_t index = 16; index > 0; index--) {
-        this->encodedMessage.push_back(uuidBytes[index]);
-      }
+      appendDirConUUID(this->encodedMessage, this->UUID);
 
     } else if (this->Identifier == DIRCON_MSGID_WRITE_CHARACTERISTIC ||
                this->Identifier == DIRCON_MSGID_UNSOLICITED_CHARACTERISTIC_NOTIFICATION ||
@@ -80,10 +86,7 @@ std::vector<uint8_t> *DirConMessage::encode(uint8_t sequenceNumber) {
       this->Length = 16 + this->AdditionalData.size();
       this->encodedMessage.push_back((uint8_t)(this->Length >> 8));
       this->encodedMessage.push_back((uint8_t)(this->Length));
-      uint8_t *uuidBytes = (uint8_t *)this->UUID.to128().getNative();
-      for (uint8_t index = 16; index > 0; index--) {
-        this->encodedMessage.push_back(uuidBytes[index]);
-      }
+      appendDirConUUID(this->encodedMessage, this->UUID);
       for (size_t counter = 0; counter < this->AdditionalData.size(); counter++) {
         this->encodedMessage.push_back(this->AdditionalData[counter]);
       }
@@ -123,7 +126,7 @@ size_t DirConMessage::parse(uint8_t *data, size_t len, uint8_t sequenceNumber) {
         this->AdditionalUUIDs.clear();
         size_t index = 0;
         while (this->Length >= index + 16) {
-          NimBLEUUID uuid(data + DIRCON_MESSAGE_HEADER_LENGTH + index, 16, true);
+          NimBLEUUID uuid = parseDirConUUID(data + DIRCON_MESSAGE_HEADER_LENGTH + index);
           this->AdditionalUUIDs.push_back(uuid);
           index += 16;
           parsedBytes += 16;
@@ -137,7 +140,7 @@ size_t DirConMessage::parse(uint8_t *data, size_t len, uint8_t sequenceNumber) {
 
     case DIRCON_MSGID_DISCOVER_CHARACTERISTICS:
       if (this->Length >= 16) {
-        NimBLEUUID uuid(data + DIRCON_MESSAGE_HEADER_LENGTH, 16, true);
+        NimBLEUUID uuid = parseDirConUUID(data + DIRCON_MESSAGE_HEADER_LENGTH);
         this->UUID = uuid;
         parsedBytes += 16;
         if (this->Length == 16) {
@@ -147,7 +150,7 @@ size_t DirConMessage::parse(uint8_t *data, size_t len, uint8_t sequenceNumber) {
           this->AdditionalData.clear();
           size_t index = 16;
           while (this->Length >= index + 17) {
-            NimBLEUUID uuid(data + DIRCON_MESSAGE_HEADER_LENGTH + index, 16, true);
+            NimBLEUUID uuid = parseDirConUUID(data + DIRCON_MESSAGE_HEADER_LENGTH + index);
             this->AdditionalUUIDs.push_back(uuid);
             this->AdditionalData.push_back((uint8_t)data[DIRCON_MESSAGE_HEADER_LENGTH + index + 16]);
             index += 17;
@@ -167,7 +170,7 @@ size_t DirConMessage::parse(uint8_t *data, size_t len, uint8_t sequenceNumber) {
 
     case DIRCON_MSGID_READ_CHARACTERISTIC:
       if (this->Length >= 16) {
-        NimBLEUUID uuid(data + DIRCON_MESSAGE_HEADER_LENGTH, 16, true);
+        NimBLEUUID uuid = parseDirConUUID(data + DIRCON_MESSAGE_HEADER_LENGTH);
         this->UUID = uuid;
         parsedBytes += 16;
         if (this->Length == 16) {
@@ -188,7 +191,7 @@ size_t DirConMessage::parse(uint8_t *data, size_t len, uint8_t sequenceNumber) {
 
     case DIRCON_MSGID_WRITE_CHARACTERISTIC:
       if (this->Length > 16) {
-        NimBLEUUID uuid(data + DIRCON_MESSAGE_HEADER_LENGTH, 16, true);
+        NimBLEUUID uuid = parseDirConUUID(data + DIRCON_MESSAGE_HEADER_LENGTH);
         this->UUID = uuid;
         parsedBytes += 16;
         this->Request = this->isRequest(sequenceNumber);
@@ -206,7 +209,7 @@ size_t DirConMessage::parse(uint8_t *data, size_t len, uint8_t sequenceNumber) {
 
     case DIRCON_MSGID_ENABLE_CHARACTERISTIC_NOTIFICATIONS:
       if ((this->Length == 16) || (this->Length == 17)) {
-        NimBLEUUID uuid(data + DIRCON_MESSAGE_HEADER_LENGTH, 16, true);
+        NimBLEUUID uuid = parseDirConUUID(data + DIRCON_MESSAGE_HEADER_LENGTH);
         this->UUID = uuid;
         parsedBytes += 16;
         if (this->Length == 17) {
@@ -224,7 +227,7 @@ size_t DirConMessage::parse(uint8_t *data, size_t len, uint8_t sequenceNumber) {
 
     case DIRCON_MSGID_UNSOLICITED_CHARACTERISTIC_NOTIFICATION:
       if (this->Length > 16) {
-        NimBLEUUID uuid(data + DIRCON_MESSAGE_HEADER_LENGTH, 16, true);
+        NimBLEUUID uuid = parseDirConUUID(data + DIRCON_MESSAGE_HEADER_LENGTH);
         this->UUID = uuid;
         parsedBytes += 16;
         this->AdditionalData.clear();

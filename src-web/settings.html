@@ -21,6 +21,7 @@
         let gradeSmoothing = document.getElementById('grade_smoothing');
         let difficulty = document.getElementById('difficulty');
         let ftmsEmulation = document.getElementById('ftms_emulation');
+        let appDrivenGears = document.getElementById('app_driven_gears');
 
         fetch('/devicesettings', {
             method: 'GET',
@@ -39,6 +40,7 @@
                 gradeSmoothing.checked = response.grade_smoothing;
                 difficulty.value = response.difficulty;
                 ftmsEmulation.checked = response.ftms_emulation;
+                appDrivenGears.checked = response.app_driven_gears;
                 while (trainerDevice.options.length > 0) {
                     trainerDevice.remove(0);
                 }
@@ -69,11 +71,6 @@
 
     }
     function enableSave() {
-        let virtualShifting = document.getElementById('virtual_shifting');
-        let ftmsEmulation = document.getElementById('ftms_emulation');
-        if (ftmsEmulation.checked) {
-            virtualShifting.checked = false;
-        }
         let save = document.getElementById('save_btn');
         save.disabled = false;
     }
@@ -144,6 +141,13 @@
                         <label>FTMS Emulation:</label>
                         <label for="ftms_emulation" class="switch">
                             <input type="checkbox" id="ftms_emulation" name="ftms_emulation" onchange="enableSave()">
+                            <span class="slider round"></span>
+                        </label>
+                    </div>
+                    <div class="form-control">
+                        <label>App-driven gears (no Click/Play):</label>
+                        <label for="app_driven_gears" class="switch">
+                            <input type="checkbox" id="app_driven_gears" name="app_driven_gears" onchange="enableSave()">
                             <span class="slider round"></span>
                         </label>
                     </div>

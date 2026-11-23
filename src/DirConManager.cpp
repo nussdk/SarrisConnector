@@ -77,7 +77,11 @@ void DirConManager::resetValues() {
   zwiftTrainerMode = TrainerMode::SIM_MODE;
   zwiftPower = 0;
   zwiftGrade = 0;
-  zwiftGearRatio = 0;
+  // With app-driven gears there is no Click/Play sending a ratio, so start from
+  // the configured chainring:sprocket ratio instead of falling back to plain SIM.
+  zwiftGearRatio = SettingsManager::isAppDrivenGearsEnabled()
+    ? (uint64_t)round(defaultGearRatio * 10000.0)
+    : 0;
   zwiftBicycleWeight = 1000;
   zwiftUserWeight = 7500;
 
@@ -95,6 +99,21 @@ void DirConManager::resetValues() {
   ftmsGrade = 0;
   ftmsCrr = 0;
   ftmsCw = 0;
+}
+
+bool DirConManager::setVirtualGearRatio(double gearRatio) {
+  if (gearRatio < 0.75 || gearRatio > 5.49) {
+    return false;
+  }
+  zwiftGearRatio = (uint64_t)round(gearRatio * 10000.0);
+  zwiftTrainerMode = TrainerMode::SIM_MODE_VIRTUAL_SHIFTING;
+  updateStatusMessage();
+  updateSIMModeResistance();
+  return true;
+}
+
+double DirConManager::getVirtualGearRatio() {
+  return zwiftGearRatio / 10000.0;
 }
 
 void DirConManager::setServiceManager(ServiceManager *serviceManager) {
@@ -510,13 +529,29 @@ bool DirConManager::processZwiftSyncRequest(Service *service, Characteristic *ch
               smoothedZwiftGrade += zwiftGrade;
               smoothedZwiftGrade = smoothedZwiftGrade / 2;
             }
+            // With no Click/Play the app may never send an explicit gear ratio, but
+            // it still expects virtual shifting to be active on a climb.
+            if (SettingsManager::isAppDrivenGearsEnabled() && (zwiftTrainerMode != TrainerMode::ERG_MODE) && (zwiftGearRatio != 0)) {
+              newZwiftTrainerMode = TrainerMode::SIM_MODE_VIRTUAL_SHIFTING;
+              if (zwiftTrainerMode != newZwiftTrainerMode) {
+                zwiftTrainerMode = newZwiftTrainerMode;
+                updateStatusMessage();
+              }
+            }
             updateSIMModeResistance();
             break;
 
           // SIM mode parameter update
           case 0x2A:
             if (requestValues.find(0x10) != requestValues.end()) {
-              zwiftGearRatio = requestValues.at(0x10);
+              uint64_t requestedGearRatio = requestValues.at(0x10);
+              // A zero ratio means "no controller connected". With app-driven gears
+              // keep the currently configured ratio instead of dropping to plain SIM.
+              if ((requestedGearRatio != 0) || !SettingsManager::isAppDrivenGearsEnabled()) {
+                zwiftGearRatio = requestedGearRatio;
+              } else {
+                log_i("Ignoring zero gear ratio (app-driven gears enabled)");
+              }
             }
             if (zwiftGearRatio == 0) {
               newZwiftTrainerMode = TrainerMode::SIM_MODE;
@@ -880,7 +915,15 @@ std::vector<uint8_t> DirConManager::processFTMSWriteRequest(Service* service, Ch
           ftmsCrr = parameter.at(4);
           // cw in 0.01
           ftmsCw = parameter.at(5);
-          if (!BTDeviceManager::writeFECTrackResistance((uint16_t)(0x4E20 + ftmsGrade), ftmsCrr)) {
+          if (SettingsManager::isAppDrivenGearsEnabled()) {
+            // Feed the app's grade through the virtual-shifting calculation so gear
+            // changes from MyWhoosh affect resistance even without a Click/Play.
+            zwiftGrade = ftmsGrade;
+            smoothedZwiftGrade = ftmsGrade;
+            zwiftTrainerMode = TrainerMode::SIM_MODE_VIRTUAL_SHIFTING;
+            updateStatusMessage();
+            updateSIMModeResistance();
+          } else if (!BTDeviceManager::writeFECTrackResistance((uint16_t)(0x4E20 + ftmsGrade), ftmsCrr)) {
             log_e("Error writing SIM FEC track resistance");
           }
           success = true;

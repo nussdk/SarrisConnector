@@ -1,10 +1,13 @@
 #include <Arduino.h>
+#include <cstdlib>
 #include <AsyncTCP.h>
 #include <BTDeviceManager.h>
 #include <Config.h>
 #include <DirConManager.h>
 #include <ESPmDNS.h>
+#ifdef ARDUINO_WT32_ETH01
 #include <ETH.h>
+#endif
 #include <IotWebConf.h>
 #include <IotWebConfESP32HTTPUpdateServer.h>
 #include <IotWebConfUsing.h>
@@ -21,6 +24,9 @@ void handleWebServerStatus();
 void handleWebServerSettings();
 void handleWebServerSettingsPost();
 void handleWebServerDebug();
+void handleWebServerGear();
+void handleWebServerGearPost();
+void handleWebServerConnect();
 
 bool isMDNSStarted = false;
 bool isBLEConnected = false;
@@ -51,9 +57,11 @@ void setup() {
   WiFi.onEvent(networkEvent);
   log_i("Network events initialized");
 
-  // initialize ethernet interface
+#ifdef ARDUINO_WT32_ETH01
+  // initialize ethernet interface (WT32-ETH01 only)
   ETH.begin();
   log_i("Ethernet interface initialized");
+#endif
 
   // initialize settings manager
   SettingsManager::initialize(&iotWebConf);
@@ -72,6 +80,10 @@ void setup() {
 
   webServer.on("/debug", handleWebServerDebug);
   webServer.on("/status", handleWebServerStatus);
+  // Local control endpoints, deliberately unauthenticated like /status and /debug
+  webServer.on("/gear", HTTP_GET, handleWebServerGear);
+  webServer.on("/gear", HTTP_POST, handleWebServerGearPost);
+  webServer.on("/connect", HTTP_POST, handleWebServerConnect);
   webServer.on("/favicon.ico", [] { handleWebServerFile("favicon.ico"); });
   webServer.on("/style.css", [] { handleWebServerFile("style.css"); });
   webServer.on("/", [] { handleWebServerFile("index.html"); });
@@ -151,6 +163,7 @@ void loop() {
 
 void networkEvent(WiFiEvent_t event) {
   switch (event) {
+#ifdef ARDUINO_WT32_ETH01
     case ARDUINO_EVENT_ETH_START:
       log_d("Ethernet started");
       ETH.setHostname(Utils::getHostName().c_str());
@@ -170,6 +183,7 @@ void networkEvent(WiFiEvent_t event) {
       log_d("Ethernet stopped");
       isEthernetConnected = false;
       break;
+#endif
     case ARDUINO_EVENT_WIFI_STA_GOT_IP:
       log_i("WiFi DHCP successful with IP %u.%u.%u.%u", WiFi.localIP()[0], WiFi.localIP()[1], WiFi.localIP()[2], WiFi.localIP()[3]);
       isWiFiConnected = true;
@@ -299,7 +313,18 @@ void handleWebServerSettings() {
   } else {
     json += "false";
   }
-  json += "";
+  json += ",";
+
+  json += "\"app_driven_gears\": ";
+  if (SettingsManager::isAppDrivenGearsEnabled()) {
+    json += "true";
+  } else {
+    json += "false";
+  }
+  json += ",";
+
+  json += "\"gear_ratio\": ";
+  json += DirConManager::getVirtualGearRatio();
 
   json += "}";
 
@@ -335,9 +360,15 @@ void handleWebServerSettingsPost() {
     }
     if (webServer.hasArg("ftms_emulation")) {
       SettingsManager::setFTMSEnabled(true);
-      SettingsManager::setVirtualShiftingEnabled(false);
     } else {
       SettingsManager::setFTMSEnabled(false);
+    }
+    if (webServer.hasArg("app_driven_gears")) {
+      SettingsManager::setAppDrivenGearsEnabled(true);
+      // App-driven gears need the internal Zwift shifting service to exist.
+      SettingsManager::setVirtualShiftingEnabled(true);
+    } else {
+      SettingsManager::setAppDrivenGearsEnabled(false);
     }
     iotWebConf.saveConfig();
     delay(500);
@@ -364,6 +395,7 @@ void handleWebServerStatus() {
   json += "\",";
 
   json += "\"ethernet_status\": \"";
+#ifdef ARDUINO_WT32_ETH01
   if (isEthernetConnected) {
     json += "Connected";
     json += ", IP: ";
@@ -371,6 +403,9 @@ void handleWebServerStatus() {
   } else {
     json += "Not connected";
   }
+#else
+  json += "Not available";
+#endif
   json += "\",";
 
   json += "\"wifi_status\": \"";
@@ -423,7 +458,14 @@ void handleWebServerStatus() {
   if (SettingsManager::isVirtualShiftingEnabled()) {
     json += " + virtual shifting";
   }
+  if (SettingsManager::isAppDrivenGearsEnabled()) {
+    json += " + app-driven gears";
+  }
   json += "\",";
+
+  json += "\"gear_ratio\": ";
+  json += DirConManager::getVirtualGearRatio();
+  json += ",";
 
   json += "\"free_heap\": ";
   json += ESP.getFreeHeap();
@@ -476,4 +518,25 @@ void handleWebServerDebug() {
   json += "}";
 
   webServer.send(200, "application/json", json);
+}
+
+void handleWebServerGear() {
+  String json = "{";
+  json += "\"gear_ratio\": ";
+  json += DirConManager::getVirtualGearRatio();
+  json += "}";
+  webServer.send(200, "application/json", json);
+}
+
+void handleWebServerGearPost() {
+  bool success = false;
+  if (webServer.hasArg("gear_ratio")) {
+    success = DirConManager::setVirtualGearRatio(std::atof(webServer.arg("gear_ratio").c_str()));
+  }
+  webServer.send(success ? 200 : 400, "application/json", success ? "{\"success\": true}" : "{\"success\": false}");
+}
+
+void handleWebServerConnect() {
+  bool success = BTDeviceManager::reconnect();
+  webServer.send(success ? 200 : 503, "application/json", success ? "{\"success\": true}" : "{\"success\": false}");
 }

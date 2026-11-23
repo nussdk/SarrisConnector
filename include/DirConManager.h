@@ -28,6 +28,9 @@ class DirConManager {
   static void notifyDirConCharacteristic(const NimBLEUUID& characteristicUUID, uint8_t* pData, size_t length);
   static String getStatusMessage();
   static TrainerMode getZwiftTrainerMode();
+  // Web UI helpers for app-driven virtual gears (ratio is chainring:sprocket, 0.75..5.49)
+  static bool setVirtualGearRatio(double gearRatio);
+  static double getVirtualGearRatio();
 
  private:
   friend class DirConServiceManagerCallbacks;

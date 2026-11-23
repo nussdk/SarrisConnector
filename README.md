@@ -29,13 +29,23 @@ and [`VirtualShifting.md`](VirtualShifting.md).
 
 ## Firmware build
 
-Upstream targets the WT32-ETH01 with PlatformIO. Available test hardware here is a
-generic ESP32 and an ESP32-S3; portability changes are tracked in `TODO.md`.
+The firmware uses NimBLE-Arduino 2.x and builds for a generic ESP32, an ESP32-S3
+DevKitC-1, and the upstream WT32-ETH01. All targets use the `min_spiffs.csv` partition
+layout because NimBLE 2.x does not fit in the default 1.25 MB app partition.
 
 ```bash
-pio run                 # build
-pio run -t upload       # flash
+pio run -e esp32dev              # generic ESP32 (default)
+pio run -e esp32-s3-devkitc-1    # ESP32-S3 DevKitC-1
+pio run -e wt32-eth01            # upstream board
+
+pio run -e esp32dev -t upload    # flash
+pio run -e esp32dev -t monitor   # serial console, 115200 baud
+pio test -e native               # calculation unit tests
 ```
+
+The web UI is at the device's IP (see serial output). It exposes gear up/down buttons
+and a reconnect button on the status page, plus an **App-driven gears** toggle under
+device settings.
 
 ## Diagnostic tools
 

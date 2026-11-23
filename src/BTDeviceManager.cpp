@@ -6,6 +6,10 @@
 #include <Utils.h>
 #include <arduino-timer.h>
 
+namespace {
+BTAdvertisedDeviceCallbacks advertisedDeviceCallbacks;
+}
+
 std::vector<NimBLEUUID> BTDeviceManager::remoteDeviceFilterUUIDs{};
 std::vector<NimBLEAdvertisedDevice> BTDeviceManager::scannedDevices{};
 ServiceManager* BTDeviceManager::serviceManager{};
@@ -91,6 +95,22 @@ bool BTDeviceManager::isStarted() {
   return started;
 }
 
+bool BTDeviceManager::reconnect() {
+  if (!started) {
+    statusMessage = "Bluetooth not started";
+    return false;
+  }
+  if (connected) {
+    return true;
+  }
+  NimBLEAdvertisedDevice* remoteDevice = getRemoteDevice();
+  if (remoteDevice == nullptr) {
+    statusMessage = "Trainer not found";
+    return false;
+  }
+  return connectRemoteDevice(remoteDevice);
+}
+
 void BTDeviceManager::setLocalDeviceName(const std::string localDeviceName) {
   deviceName = localDeviceName;
 }
@@ -153,8 +173,8 @@ bool BTDeviceManager::connectRemoteDevice(NimBLEAdvertisedDevice* remoteDevice) 
   statusMessage += "'";
 
   if (serviceManager != nullptr) {
-    std::vector<NimBLERemoteService*>* remoteServices = nimBLEClient->getServices(true);
-    for (auto remoteService = remoteServices->begin(); remoteService != remoteServices->end(); remoteService++) {
+    const std::vector<NimBLERemoteService*>& remoteServices = nimBLEClient->getServices(true);
+    for (auto remoteService = remoteServices.begin(); remoteService != remoteServices.end(); remoteService++) {
       // if FTMS emulation is enabled skip the FTMS service
       if (!(SettingsManager::isFTMSEnabled() && (*remoteService)->getUUID().equals(NimBLEUUID(FITNESS_MACHINE_SERVICE_UUID)))) {
         Service* service = serviceManager->getService((*remoteService)->getUUID());
@@ -170,8 +190,8 @@ bool BTDeviceManager::connectRemoteDevice(NimBLEAdvertisedDevice* remoteDevice) 
           serviceManager->addService(service);
         }
         service->Advertise = isAdvertising;
-        std::vector<NimBLERemoteCharacteristic*>* remoteCharacteristics = (*remoteService)->getCharacteristics(true);
-        for (auto remoteCharacterisic = remoteCharacteristics->begin(); remoteCharacterisic != remoteCharacteristics->end(); remoteCharacterisic++) {
+        const std::vector<NimBLERemoteCharacteristic*>& remoteCharacteristics = (*remoteService)->getCharacteristics(true);
+        for (auto remoteCharacterisic = remoteCharacteristics.begin(); remoteCharacterisic != remoteCharacteristics.end(); remoteCharacterisic++) {
           Characteristic* characteristic = service->getCharacteristic((*remoteCharacterisic)->getUUID());
           uint32_t properties = 0;
           if (characteristic == nullptr) {
@@ -219,13 +239,13 @@ bool BTDeviceManager::doScan(void* argument) {
           connected = false;
         }
       }
-      nimBLEScanner->setAdvertisedDeviceCallbacks(new BTAdvertisedDeviceCallbacks(), false);
+      nimBLEScanner->setScanCallbacks(&advertisedDeviceCallbacks, false);
       nimBLEScanner->setActiveScan(true);
       nimBLEScanner->setInterval(97);
       nimBLEScanner->setWindow(37);
       nimBLEScanner->setMaxResults(0);
       scannedDevices.clear();
-      if (nimBLEScanner->start(0, BTDeviceManager::onScanEnd, false)) {
+      if (nimBLEScanner->start(0, false, true)) {
         statusMessage = "Scanning...";
         log_i("BLE scan started successfully");
         return false;
@@ -239,8 +259,9 @@ bool BTDeviceManager::doScan(void* argument) {
   return true;
 }
 
-void BTDeviceManager::onScanEnd(NimBLEScanResults scanResults) {
-  log_i("BLE scan finished with %d devices", scannedDevices.size());
+void BTDeviceManager::onScanEnd(const NimBLEScanResults& scanResults, int reason) {
+  (void)scanResults;
+  log_i("BLE scan finished with %d devices (reason %d)", scannedDevices.size(), reason);
   if (scannedDevices.size() <= 0) {
     if (!connected) {
       startScan();
