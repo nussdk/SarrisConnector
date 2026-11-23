@@ -30,19 +30,32 @@ Trainer data (power/cadence/speed) flows back over ANT+ → app → BLE → MyWh
 |--------|--------|
 | `protocol.py` | Done — FTMS op codes + ANT+ FE-C constants + FTMS Indoor Bike Data (0x2AD2) payload builder |
 | `translator.py` | Done — FTMS → ANT+ FE-C intent (grade / target power / resistance), unit-tested |
+| `virtual_shifting.py` | **Done** — gear ratio → ANT+ FE-C resistance/grade/power, ported from SHIFTR's `Calculations.cpp` (gravity + rolling + drag × relative gear ratio) |
 | `ant_master.py` | Done — wraps `openant.devices.fitness_equipment.FitnessEquipment`; sends `set_target_power` / `set_basic_resistance` to the M2 via ANT+ stick. **Now also parses incoming ANT+ data pages** (power/cadence/speed) via `data_callback` and tracks `last_data_time` for ANT+ connectivity heartbeat (`ant_stale` property). Needs hardware to test. |
 | `ble_server.py` | **Done (WinRT backend)** — hosts the FTMS GATT service and advertises as a BLE trainer peripheral via WinRT `GattServiceProvider` + `BluetoothLEAdvertisementPublisher`. Control-point writes from MyWhoosh flow to `handle_control_write` → translator → ANT+ master. `notify_indoor_bike_data` sends trainer data back to MyWhoosh; WinRT CCCD setup / characteristic lookup needs validation on the Windows host. |
-| `bridge.py` | Done — wires BLE command → translator → ANT+ master **and** ANT+ trainer data → BLE notify to MyWhoosh |
+| `bridge.py` | Done — wires BLE command → translator → ANT+ master **and** ANT+ trainer data → BLE notify to MyWhoosh **and** MyWhoosh gear ratio → VirtualShifter → ANT+ master |
 | `__main__.py` | Done — `python -m sarris_connector` entry point |
 
 ## Data flow
 
 ```
 Command path:  MyWhoosh (BLE FTMS writes) -> bridge -> translator -> ANT+ FE-C -> M2
+               MyWhoosh (gear ratio) -> bridge -> VirtualShifter -> ANT+ FE-C -> M2
 Data path:     M2 (ANT+ data pages) -> ant_master data callback -> bridge -> BLE notify (0x2AD2) -> MyWhoosh
 ```
 
 Heartbeat: `AntMaster.last_data_time` is updated on every ANT+ data page; `ant_stale` is `True` if no data page has arrived for >5 seconds.
+
+## Virtual shifting
+
+MyWhoosh sends a selected gear ratio (0.75–5.49). The `VirtualShifter` calculates the total resistance force (gravity + rolling + drag) at the current grade/speed, applies the relative gear ratio (selected ÷ default 34/14), and outputs one of three ANT+ FE-C action types:
+
+- `basic_resistance` → `set_basic_resistance` (0–100%)
+- `track_resistance` → equivalent grade → `set_basic_resistance` placeholder
+- `target_power` → calculated watts → `set_target_power`
+
+Mode is configurable via `VirtualShifter(mode=...)`. Gear index (0–23) maps to the Zwift gear ratio table.
+
 
 
 ## Run
